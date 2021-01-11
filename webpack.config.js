@@ -17,14 +17,18 @@ const appBuild = path.resolve(__dirname, 'build');
 const appHtml = path.resolve(__dirname, 'src/index.html');
 const appHtmlts = path.resolve(__dirname, 'src/index');
 const assets = path.resolve(__dirname, 'src/assets');
-
-// function copyPublicFolder() {
-//     console.log('------- copying files from public dir to build -------');
-//     fs.copySync(appPublic, appBuild, {
-//       dereference: true,
-//       filter: file => file !== appHtml,
-//     });
-// }
+const srcModules = path.resolve(__dirname, 'src/models');
+const srcInBuild = path.resolve(__dirname, 'build/src/models');
+function copyPublicFolder() {
+    if (!fs.existsSync(srcModules)){
+        fs.mkdirSync(srcModules);
+    }
+    console.log('------- copying files from public dir to build -------');
+    fs.copySync(srcModules, srcInBuild, {
+      dereference: true,
+      filter: file => file !== appHtml,
+    });
+}
 module.exports = (env) =>  {
     const isProduction = env.NODE_ENV === 'production';
     const isDevelopment = env.NODE_ENV === 'development';
@@ -34,9 +38,9 @@ module.exports = (env) =>  {
         ...globalConfig
     }
     !isProduction ? envConfig = {...envConfig, ...localConfig} : null;
-    // isProduction && checkBrowsers(appPath, isInteractive).then(() => {
-    //     copyPublicFolder();
-    // })
+    isProduction && checkBrowsers(appPath, isInteractive).then(() => {
+        copyPublicFolder();
+    })
     console.log('=========================', env.NODE_ENV, 'env_var', envConfig)
     return {
         mode: env.NODE_ENV,
