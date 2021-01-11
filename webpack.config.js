@@ -1,22 +1,50 @@
 const path = require('path');
 const webpack = require('webpack');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
+const fs = require('fs-extra');
+const { checkBrowsers } = require('react-dev-utils/browsersHelper');
 const TerserPlugin = require('terser-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+// const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
 
+// const webpackDevClientEntry = require.resolve('react-dev-utils/webpackHotDevClient');
+// const reactRefreshOverlayEntry = require.resolve('react-dev-utils/refreshOverlayInterop');
+
+const isInteractive = process.stdout.isTTY;
+const appPath = path.resolve(__dirname, './');
+const appPublic = path.resolve(__dirname, 'public');
+const appBuild = path.resolve(__dirname, 'build');
+const appHtml = path.resolve(__dirname, 'src/index.html');
+const appHtmlts = path.resolve(__dirname, 'src/index');
+const assets = path.resolve(__dirname, 'src/assets');
+
+// function copyPublicFolder() {
+//     console.log('------- copying files from public dir to build -------');
+//     fs.copySync(appPublic, appBuild, {
+//       dereference: true,
+//       filter: file => file !== appHtml,
+//     });
+// }
 module.exports = (env) =>  {
+    const isProduction = env.NODE_ENV === 'production';
+    const isDevelopment = env.NODE_ENV === 'development';
     const globalConfig = require('./config/config.json')[env.NODE_ENV];
     const localConfig = require('./config/config.local.json')[env.NODE_ENV];
-    console.log('=========================', env.NODE_ENV)
+    let envConfig = {
+        ...globalConfig
+    }
+    !isProduction ? envConfig = {...envConfig, ...localConfig} : null;
+    // isProduction && checkBrowsers(appPath, isInteractive).then(() => {
+    //     copyPublicFolder();
+    // })
+    console.log('=========================', env.NODE_ENV, 'env_var', envConfig)
     return {
         mode: env.NODE_ENV,
-        entry: {
-            main: './src/index.tsx',
-            home: './src/components/pageComponents/home/home.tsx'
-        },
+        entry:  appHtmlts,
         output: {
-            path: path.resolve(__dirname, 'dist'),
-            filename: '[name].[hash:8].js',
-            // publicPath: '/',
+            path: appBuild,
+            filename: 'bundle.js',
+            publicPath: '/'
         },
         devtool: 'source-map',
         module: {
@@ -25,59 +53,85 @@ module.exports = (env) =>  {
                     test: /\.(js|jsx)$/,
                     use: {
                         loader: 'babel-loader',
-                        query: {compact: false},
+                        query: {compact: false}
                     },
-                    exclude: /(node-modules)/
+                    exclude: /node-modules/
                 },
                 {
                     test: /\.tsx?$/,
-                    use: 'ts-loader',
+                    use: [{
+                        loader: 'ts-loader',
+                        options: {
+                            transpileOnly: true
+                        },
+                    }],
                     exclude: /node-modules/
                 },
                 {
                     test: /\.css$/,
-                    use: ['style-loader', 'css-loader']
+                    use: ['style-loader', 'css-loader'],
+                    exclude: /node-modules/
                 },
                 {
                     test: /\.(s[ac]ss)$/i,
-                    use: ['style-loader', 'css-loader', 'sass-loader']
+                    use: ['style-loader', 'css-loader', 'sass-loader'],
+                    exclude: /node-modules/
                 },
                 {
-                    test: /\.(png|j?g|svg|gif)$/,
-                    use: ['file-loader']
+                    test: /\.(jpe?g|png|gif|woff|woff2|eot|ttf|svg)(\?[a-z0-9=.]+)?$/,
+                    use: {
+                        loader: 'url-loader',
+                        options: {
+                            esModule: false
+                        }
+                    }
+                },
+                {
+                    test: /\.(png|jpeg|gif|svg|jpg)/,
+                    use: [{
+                        loader: 'file-loader',
+                        options: {
+                            outputPath: assets + '/images',
+                            publicPath: '/images'
+                        }
+                    }]
                 }
                 
             ]
         },
         optimization: {
-            runtimeChunk: 'single',
-            splitChunks: {
-                chunks: 'all',
-                maxInitialRequests: Infinity,
-                minSize: 0,
-                cacheGroups: {
-                    vendor: {
-                        test: /[\\/]node_modules[\\/]/,
-                        name(module) {
-                            const packageName = module.context.match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/)[1];
-                            return `npm.${packageName.replace('@', '')}`;
-                        }
-                    }
-                }
-            },
+            minimize: isProduction,
             minimizer: [
                 new TerserPlugin({
-                    // Use multi-process parallel running to improve the build speed
-                    // Default number of concurrent runs: os.cpus().length - 1
-                    parallel: true,
-                    // Enable file caching
-                    cache: true,
-                    sourceMap: true,
+                    // test: /\.tsx(\?.*)?$/i
+                    terserOptions: {
+                        parse: {
+                          ecma: 8,
+                        },
+                        compress: {
+                          ecma: 5,
+                          warnings: false,
+                          comparisons: false,
+                        },
+                        mangle: {
+                          safari10: true,
+                        },
+                        output: {
+                          ecma: 5,
+                          comments: false,
+                          ascii_only: true,
+                        },
+                    },
+                    sourceMap: isProduction ? false : true,
                 }),
             ],
         },
         resolve: {
-            extensions: ['.js', '.jsx', '.tsx', '.json', '.css']
+            extensions: ['.tsx', 'ts', '.js', '.jsx', '.json', '.css'],
+            alias: {
+                '~images': path.resolve(__dirname, 'src/assets/images'),
+                'Styles': path.resolve(__dirname, 'src/assets/style')
+            }
         },
         devServer: {
             historyApiFallback: true,
@@ -85,13 +139,20 @@ module.exports = (env) =>  {
             hot: true,
             port: 3000
         },
+        devtool: isProduction
+            ? 'source-map'
+            : 'cheap-module-source-map',
         plugins: [
+            new webpack.HotModuleReplacementPlugin(),
             new HtmlWebPackPlugin({
-                template: path.resolve(__dirname, 'src/index.html'),
-                filename: 'index.html'
+                template: appHtml
+            }),
+            new MiniCssExtractPlugin({ // plugin for controlling how compiled css will be outputted and named
+                filename: "css/[name].css",
+                chunkFilename: "css/[id].css"
             }),
             new webpack.DefinePlugin({
-                env_config: JSON.stringify({ ...globalConfig, ...localConfig })
+                env_config: JSON.stringify(envConfig)
             })
 
         ]
