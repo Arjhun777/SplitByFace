@@ -1,0 +1,11 @@
+{
+    "development": {
+        "endpoint": ".."
+    },
+    "test": {
+        
+    },
+    "production": {
+
+    }
+}
